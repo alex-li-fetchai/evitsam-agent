@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 from uuid import uuid4
+from dotenv import load_dotenv
+load_dotenv()
 
 from uagents import Context, Protocol
 from uagents_core.contrib.protocols.chat import (
@@ -17,6 +19,11 @@ from uagents_core.storage import ExternalStorage
 from evitsam import get_image
 
 STORAGE_URL = os.getenv("AGENTVERSE_URL", "https://agentverse.ai") + "/v1/storage"
+AGENTVERSE_API_KEY = os.getenv("AGENTVERSE_API_KEY")
+if AGENTVERSE_API_KEY is None:
+    raise ValueError("You need to provide an API_TOKEN.")
+
+external_storage = ExternalStorage(api_token=AGENTVERSE_API_KEY, storage_url=STORAGE_URL)
 
 def create_text_chat(text: str) -> ChatMessage:
     return ChatMessage(

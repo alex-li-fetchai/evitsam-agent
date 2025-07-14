@@ -1,8 +1,5 @@
-from uagents import Agent, Context, Model
+from uagents import Agent, Context
 from chat_proto import chat_proto
-
-class Message(Model):
-    message: str
 
 agent = Agent(
     name="EfficientViT SAM Agent",
