@@ -9,6 +9,7 @@ from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
     ChatMessage,
     MetadataContent,
+    Resource,
     ResourceContent,
     StartSessionContent,
     TextContent,
