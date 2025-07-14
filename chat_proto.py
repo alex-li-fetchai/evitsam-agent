@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from dotenv import load_dotenv
 load_dotenv()
@@ -27,14 +27,14 @@ external_storage = ExternalStorage(api_token=AGENTVERSE_API_KEY, storage_url=STO
 
 def create_text_chat(text: str) -> ChatMessage:
     return ChatMessage(
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         msg_id=uuid4(),
         content=[TextContent(type="text", text=text)],
     )
 
 def create_metadata(metadata: dict[str, str]) -> ChatMessage:
     return ChatMessage(
-        timestamp=datetime.now(datetime.timezone.utc),
+        timestamp=datetime.now(timezone.utc),
         msg_id=uuid4(),
         content=[MetadataContent(
             type="metadata",
@@ -44,12 +44,12 @@ def create_metadata(metadata: dict[str, str]) -> ChatMessage:
 
 def create_resource_chat(asset_id: str, uri: str) -> ChatMessage:
     return ChatMessage(
-        timestamp=datetime.now(datetime.timezone.utc),
+        timestamp=datetime.now(timezone.utc),
         msg_id=uuid4(),
         content=[
             ResourceContent(
                 type="resource",
-                resource_id=UUID4(asset_id),
+                resource_id=uuid4(),
                 resource=Resource(
                     uri=uri,
                     metadata={
@@ -70,7 +70,7 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     await ctx.send(
         sender,
         ChatAcknowledgement(
-            timestamp=datetime.utcnow(), acknowledged_msg_id=msg.msg_id
+            timestamp=datetime.now(timezone.utc), acknowledged_msg_id=msg.msg_id
         ),
     )
 
