@@ -15,6 +15,7 @@ from uagents_core.contrib.protocols.chat import (
     TextContent,
     chat_protocol_spec,
 )
+from pydantic.v1 import UUID4
 from uagents_core.storage import ExternalStorage
 
 from evitsam import get_image
@@ -50,7 +51,7 @@ def create_resource_chat(asset_id: str, uri: str) -> ChatMessage:
         content=[
             ResourceContent(
                 type="resource",
-                resource_id=uuid4(),
+                resource_id=UUID4(asset_id),
                 resource=Resource(
                     uri=uri,
                     metadata={
@@ -114,18 +115,22 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
                 # Store the segmented image
                 asset_id = str(uuid4())
                 external_storage = ExternalStorage(
-                    identity=ctx.agent.identity,
+                    api_token=AGENTVERSE_API_KEY,
                     storage_url=STORAGE_URL,
                 )
-                await external_storage.create_asset(
+                asset_id = external_storage.create_asset(
                     name=f"segmented_{asset_id}",
                     content=segmented_image,
                     mime_type="image/png"
                 )
                 
+                ctx.logger.info(f"Asset created with ID: {asset_id}")
                 # Get the URL for the segmented image
                 asset_uri = f"agent-storage://{STORAGE_URL}/{asset_id}"
                 
+                external_storage.set_permissions(asset_id=asset_id, agent_address=sender)
+                ctx.logger.info(f"Asset permissions set to: {sender}")
+
                 # Send the analysis text if available
                 if analysis:
                     await ctx.send(sender, create_text_chat(analysis))

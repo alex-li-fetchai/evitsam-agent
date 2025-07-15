@@ -5,7 +5,6 @@ agent = Agent(
     name="EfficientViT SAM Agent",
     port=8000,
     mailbox=True,
-    endpoint=("http://127.0.0.1:8000/submit"),
     publish_agent_details=True,
     readme_path="README.md"
 )
