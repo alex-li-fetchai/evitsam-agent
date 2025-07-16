@@ -69,47 +69,59 @@ chat_proto = Protocol(spec=chat_protocol_spec)
 async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     ctx.storage.set(str(ctx.session), sender)
     ctx.logger.info(f"Got a message from {sender}")
+    
+    # Acknowledge the message first
     await ctx.send(
         sender,
         ChatAcknowledgement(
-            timestamp=datetime.now(timezone.utc), acknowledged_msg_id=msg.msg_id
+            timestamp=datetime.now(timezone.utc), 
+            acknowledged_msg_id=msg.msg_id
         ),
     )
 
-    image_content = []
-    text_content = []
+    # Collect all content items
+    content_items = []
+    has_image = False
     
     for item in msg.content:
         if isinstance(item, StartSessionContent):
             ctx.logger.info(f"Got a start session message from {sender}")
             await ctx.send(sender, create_metadata({"attachments": "true"}))
+            continue
         elif isinstance(item, TextContent):
-            ctx.logger.info(f"Got a message from {sender}: {item.text}")
-            text_content.append({"text": item.text, "type": "text"})
+            ctx.logger.info(f"Got text: {item.text}")
+            content_items.append({
+                "type": "text",
+                "text": item.text
+            })
         elif isinstance(item, ResourceContent):
             try:
-                ctx.logger.info(f"Got a resource from {sender}")
+                ctx.logger.info(f"Processing resource from {sender}")
                 external_storage = ExternalStorage(
                     identity=ctx.agent.identity,
                     storage_url=STORAGE_URL,
                 )
                 data = external_storage.download(str(item.resource_id))
-                image_content.append({
-                    "type": "resource",
-                    "mime_type": data["mime_type"],
-                    "contents": data["contents"],
-                })
-
+                if data and "contents" in data:
+                    content_items.append({
+                        "type": "resource",
+                        "mime_type": data.get("mime_type", "image/png"),
+                        "contents": data["contents"],
+                    })
+                    has_image = True
+                    ctx.logger.info("Successfully downloaded image resource")
+                else:
+                    ctx.logger.error("Downloaded resource has no contents")
             except Exception as ex:
                 ctx.logger.error(f"Failed to download resource: {ex}")
                 await ctx.send(sender, create_text_chat("Failed to download resource."))
-        else:
-            ctx.logger.warning(f"Got unexpected content from {sender}")
+                return
 
-    if image_content:
+    # Process if we have an image
+    if has_image:
         try:
-            # Process the image with SAM
-            segmented_image, analysis = await get_image(image_content)
+            ctx.logger.info(f"Processing image with content items: {content_items}")
+            segmented_image, analysis = await get_image(content_items)
             
             if segmented_image:
                 # Store the segmented image
@@ -124,12 +136,12 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
                     mime_type="image/png"
                 )
                 
-                ctx.logger.info(f"Asset created with ID: {asset_id}")
-                # Get the URL for the segmented image
+                ctx.logger.info(f"Created asset with ID: {asset_id}")
                 asset_uri = f"agent-storage://{STORAGE_URL}/{asset_id}"
                 
+                # Set permissions
                 external_storage.set_permissions(asset_id=asset_id, agent_address=sender)
-                ctx.logger.info(f"Asset permissions set to: {sender}")
+                ctx.logger.info(f"Set permissions for {sender} on asset {asset_id}")
 
                 # Send the analysis text if available
                 if analysis:
@@ -141,10 +153,12 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
                 await ctx.send(sender, create_text_chat(analysis or "Failed to process image."))
                 
         except Exception as e:
-            ctx.logger.error(f"Error processing image: {e}")
-            await ctx.send(sender, create_text_chat("Error processing image."))
-    elif text_content:
+            ctx.logger.error(f"Error processing image: {str(e)}", exc_info=True)
+            await ctx.send(sender, create_text_chat("Error processing image. Please try again."))
+    elif content_items:  # Only text, no image
         await ctx.send(sender, create_text_chat("Please send an image to analyze."))
+    else:
+        ctx.logger.warning("No valid content found in message")
 
 @chat_proto.on_message(ChatAcknowledgement)
 async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
